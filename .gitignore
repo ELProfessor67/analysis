@@ -1,0 +1,8 @@
+.venv/
+.env
+analysis_results.json
+analysis_results.csv
+stt_clips_report.csv
+stt_clips/
+selenium_voice_calling.chat_history.json
+stt_clips_audio_cache/

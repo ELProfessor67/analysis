@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Call Analyzer</title>
+<style>
+  :root {
+    --bg: #0f1220;
+    --panel: #171a2c;
+    --panel-2: #1f2338;
+    --border: #2a2f4a;
+    --text: #e6e8f2;
+    --muted: #9aa0bf;
+    --accent: #6366f1;
+    --accent-2: #22d3ee;
+    --success: #22c55e;
+    --warn: #f59e0b;
+    --danger: #ef4444;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    overflow-x: hidden; }
+  header {
+    padding: 18px 24px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    background: linear-gradient(90deg, #1a1f3b, #0f1220);
+  }
+  header h1 { margin: 0; font-size: 20px; letter-spacing: 0.3px; }
+  header .sub { color: var(--muted); font-size: 13px; }
+  main { padding: 24px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; max-width: 1400px; margin: 0 auto; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+    padding: 18px 20px;
+    min-width: 0;
+  }
+  .card h2 { margin: 0 0 12px; font-size: 16px; color: var(--text); }
+  .row { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 12px; color: var(--muted); }
+  .field input[type="number"], .field select {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 10px; font-size: 14px; min-width: 140px;
+  }
+  .radio-group { display: flex; gap: 10px; flex-wrap: wrap; }
+  .radio-group label {
+    background: var(--panel-2); border: 1px solid var(--border);
+    padding: 8px 14px; border-radius: 999px; cursor: pointer; font-size: 13px;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .radio-group input[type="radio"] { accent-color: var(--accent); }
+  button {
+    background: var(--accent); color: white; border: none;
+    padding: 10px 18px; border-radius: 10px; cursor: pointer;
+    font-weight: 600; font-size: 14px;
+    transition: transform 0.04s ease, background 0.15s ease, opacity 0.15s ease;
+  }
+  button:hover { background: #4f46e5; }
+  button:active { transform: translateY(1px); }
+  button[disabled] { opacity: 0.5; cursor: not-allowed; }
+  button.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+  button.secondary:hover { background: #272c47; }
+  .status-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .status-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--muted);
+    box-shadow: 0 0 0 4px rgba(255,255,255,0.04);
+  }
+  .status-dot.idle     { background: #6b7280; }
+  .status-dot.running  { background: var(--accent-2); animation: pulse 1.2s infinite; }
+  .status-dot.done     { background: var(--success); }
+  .status-dot.error    { background: var(--danger); }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+  .progress-wrap {
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 8px; height: 12px; overflow: hidden; min-width: 260px; flex: 1;
+  }
+  .progress-bar {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width 0.3s ease;
+  }
+  .kpi-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+  }
+  .kpi {
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px;
+  }
+  .kpi .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .kpi .value { font-size: 20px; font-weight: 700; margin-top: 4px; }
+  pre.logs {
+    background: #0a0d1a; border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px; color: #c7cadf; font-size: 12px; max-height: 260px;
+    overflow: auto; margin: 0;
+  }
+  #resultsCard { display: flex; flex-direction: column; min-height: 0; }
+  .table-wrap {
+    overflow: auto;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    height: 65vh;
+    max-height: 65vh;
+    width: 100%;
+    max-width: 100%;
+    overscroll-behavior: contain;
+  }
+  .table-wrap::-webkit-scrollbar { width: 10px; height: 10px; }
+  .table-wrap::-webkit-scrollbar-track { background: #131627; }
+  .table-wrap::-webkit-scrollbar-thumb { background: #3a3f5e; border-radius: 6px; }
+  .table-wrap::-webkit-scrollbar-thumb:hover { background: #4c527a; }
+  table {
+    width: max-content; min-width: 100%;
+    border-collapse: collapse; font-size: 12px;
+    background: var(--panel-2);
+  }
+  th, td {
+    text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border);
+    white-space: nowrap; vertical-align: top;
+  }
+  th {
+    position: sticky; top: 0; background: #1b1f36; z-index: 1;
+    color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase;
+  }
+  td { max-width: 420px; overflow: hidden; text-overflow: ellipsis; }
+  td.wrap { white-space: normal; max-width: 480px; }
+  tr:hover td { background: #232845; }
+  .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .pill {
+    display: inline-block; padding: 2px 8px; border-radius: 999px;
+    background: #2a2f4a; color: var(--text); font-size: 11px;
+  }
+  .muted { color: var(--muted); font-size: 12px; }
+  .error-banner {
+    background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.45);
+    color: #fecaca; padding: 10px 12px; border-radius: 8px; font-size: 13px;
+  }
+  .hidden { display: none !important; }
+  .footer-note { color: var(--muted); font-size: 12px; text-align: center; padding: 12px; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+  .tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--border); margin: 4px 0 12px; }
+  .tab-btn {
+    background: transparent; color: var(--muted); border: none;
+    padding: 8px 14px; cursor: pointer; font-size: 13px; font-weight: 600;
+    border-bottom: 2px solid transparent; border-radius: 0;
+  }
+  .tab-btn:hover { background: transparent; color: var(--text); }
+  .tab-btn.active { color: var(--text); border-bottom-color: var(--accent); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Call Analyzer</h1>
+    <div class="sub">Fetch calls from MongoDB, analyze with Gemini, view & download reports.</div>
+  </div>
+  <div class="sub" id="serverTime"></div>
+</header>
+
+<main>
+  <!-- Controls -->
+  <section class="card" id="controlsCard">
+    <h2>Run Analysis</h2>
+    <div class="row">
+      <div class="field">
+        <label for="count">Number of calls</label>
+        <input type="number" id="count" min="1" max="500" value="20" />
+      </div>
+
+      <div class="field">
+        <label>Pick mode</label>
+        <div class="radio-group">
+          <label><input type="radio" name="mode" value="latest" checked /> Latest</label>
+          <label><input type="radio" name="mode" value="random" /> Random</label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>STT clipping</label>
+        <div class="radio-group">
+          <label><input type="checkbox" id="runClipping" checked /> Run clip_stt_issues.py</label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>&nbsp;</label>
+        <button id="analyzeBtn">Analyze</button>
+      </div>
+    </div>
+    <div id="errorBanner" class="error-banner hidden" style="margin-top: 12px;"></div>
+  </section>
+
+  <!-- Status -->
+  <section class="card">
+    <h2>Status</h2>
+    <div class="status-bar">
+      <span class="status-dot idle" id="statusDot"></span>
+      <strong id="statusText">Idle</strong>
+      <span class="muted" id="statusMsg"></span>
+      <div class="progress-wrap"><div class="progress-bar" id="progressBar"></div></div>
+      <span class="muted" id="progressLabel">0 / 0</span>
+    </div>
+
+    <div class="kpi-grid" style="margin-top: 14px;">
+      <div class="kpi"><div class="label">Mode</div><div class="value" id="kpiMode">-</div></div>
+      <div class="kpi"><div class="label">Target calls</div><div class="value" id="kpiTarget">-</div></div>
+      <div class="kpi"><div class="label">Fetched</div><div class="value" id="kpiFetched">-</div></div>
+      <div class="kpi"><div class="label">Analyzed (CSV rows)</div><div class="value" id="kpiAnalyzed">-</div></div>
+    </div>
+
+    <details style="margin-top: 14px;">
+      <summary>Show logs</summary>
+      <pre class="logs" id="logs"></pre>
+    </details>
+  </section>
+
+  <!-- Results -->
+  <section class="card" id="resultsCard">
+    <div class="toolbar" style="justify-content: space-between;">
+      <h2 style="margin: 0;">Reports</h2>
+      <div class="toolbar">
+        <button class="secondary" id="refreshBtn">Refresh</button>
+        <button class="secondary" id="dlAnalysisCsv">Download Analysis CSV</button>
+        <button class="secondary" id="dlAnalysisJson">Download Analysis JSON</button>
+        <button class="secondary" id="dlSttCsv">Download STT CSV</button>
+      </div>
+    </div>
+
+    <div class="tabs" role="tablist">
+      <button class="tab-btn active" data-tab="analysis" role="tab">Analysis Report</button>
+      <button class="tab-btn" data-tab="stt" role="tab">STT Clips Report</button>
+    </div>
+
+    <div id="panel-analysis" class="tab-panel active">
+      <div class="muted" id="metaAnalysis" style="margin: 0 0 12px;">No results yet.</div>
+      <div class="table-wrap" id="tableAnalysis"><em class="muted" style="padding: 12px; display: block;">Run an analysis to see the report here.</em></div>
+    </div>
+
+    <div id="panel-stt" class="tab-panel">
+      <div class="muted" id="metaStt" style="margin: 0 0 12px;">No STT report yet.</div>
+      <div class="table-wrap" id="tableStt"><em class="muted" style="padding: 12px; display: block;">STT clipping report will appear here after clip_stt_issues.py runs.</em></div>
+    </div>
+  </section>
+
+  <div class="footer-note">Call Analyzer &middot; powered by Gemini &middot; <span id="yearLbl"></span></div>
+</main>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const analyzeBtn = $("analyzeBtn");
+  const countEl    = $("count");
+  const runClipEl  = $("runClipping");
+  const statusDot  = $("statusDot");
+  const statusText = $("statusText");
+  const statusMsg  = $("statusMsg");
+  const progBar    = $("progressBar");
+  const progLabel  = $("progressLabel");
+  const logsEl     = $("logs");
+  const errorBanner= $("errorBanner");
+  const refreshBtn = $("refreshBtn");
+  const tableAnalysis = $("tableAnalysis");
+  const tableStt      = $("tableStt");
+  const metaAnalysis  = $("metaAnalysis");
+  const metaStt       = $("metaStt");
+
+  $("yearLbl").textContent = new Date().getFullYear();
+
+  function fmtTime() {
+    const d = new Date();
+    return d.toLocaleTimeString();
+  }
+  setInterval(() => { $("serverTime").textContent = fmtTime(); }, 1000);
+  $("serverTime").textContent = fmtTime();
+
+  function getMode() {
+    const el = document.querySelector('input[name="mode"]:checked');
+    return el ? el.value : "latest";
+  }
+
+  function setStatusDot(cls) {
+    statusDot.className = "status-dot " + cls;
+  }
+
+  function setError(msg) {
+    if (!msg) { errorBanner.classList.add("hidden"); errorBanner.textContent = ""; return; }
+    errorBanner.textContent = msg;
+    errorBanner.classList.remove("hidden");
+  }
+
+  async function startAnalysis() {
+    setError("");
+    const count = parseInt(countEl.value, 10);
+    if (!count || count < 1) { setError("Enter a valid number of calls."); return; }
+    const mode = getMode();
+    const run_clipping = runClipEl.checked;
+
+    analyzeBtn.disabled = true;
+    try {
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ count, mode, run_clipping })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        setError(data.error || "Failed to start job.");
+        analyzeBtn.disabled = false;
+        return;
+      }
+    } catch (e) {
+      setError("Network error: " + e.message);
+      analyzeBtn.disabled = false;
+    }
+  }
+
+  analyzeBtn.addEventListener("click", startAnalysis);
+  refreshBtn.addEventListener("click", () => loadAllResults(true));
+
+  // Tabs
+  document.querySelectorAll(".tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const tab = btn.getAttribute("data-tab");
+      document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b === btn));
+      document.querySelectorAll(".tab-panel").forEach(p => {
+        p.classList.toggle("active", p.id === "panel-" + tab);
+      });
+    });
+  });
+
+  const statusMap = {
+    idle:      { dot: "idle",    label: "Idle" },
+    starting:  { dot: "running", label: "Starting" },
+    fetching:  { dot: "running", label: "Fetching from MongoDB" },
+    analyzing: { dot: "running", label: "Analyzing (Gemini)" },
+    clipping:  { dot: "running", label: "Clipping STT audio" },
+    done:      { dot: "done",    label: "Done" },
+    error:     { dot: "error",   label: "Error" },
+  };
+
+  let lastStatus = "idle";
+  let lastLogCount = 0;
+  let resultsLoadedForDone = false;
+
+  async function pollStatus() {
+    try {
+      const res = await fetch("/api/status");
+      const s = await res.json();
+
+      const m = statusMap[s.status] || statusMap.idle;
+      setStatusDot(m.dot);
+      statusText.textContent = m.label;
+      statusMsg.textContent = s.message || "";
+
+      $("kpiMode").textContent = (s.params && s.params.mode) ? s.params.mode : "-";
+      $("kpiTarget").textContent = s.target_count || (s.params && s.params.count) || "-";
+      $("kpiFetched").textContent = s.fetched_count ?? "-";
+      $("kpiAnalyzed").textContent = s.analyzed_count ?? "-";
+
+      const target = s.target_count || (s.params && s.params.count) || 0;
+      const done   = s.analyzed_count || 0;
+      const pct    = target ? Math.min(100, Math.round((done / target) * 100)) : 0;
+      progBar.style.width = pct + "%";
+      progLabel.textContent = `${done} / ${target || "-"}`;
+
+      if (s.error) setError(s.error);
+      else if (s.status !== "error") setError("");
+
+      // Update logs (only if changed)
+      if (s.logs && s.logs.length !== lastLogCount) {
+        logsEl.textContent = s.logs.join("\n");
+        logsEl.scrollTop = logsEl.scrollHeight;
+        lastLogCount = s.logs.length;
+      }
+
+      const running = ["starting","fetching","analyzing","clipping"].includes(s.status);
+      analyzeBtn.disabled = running;
+
+      // Reload results when a run finishes
+      if (s.status === "done" && lastStatus !== "done" && !resultsLoadedForDone) {
+        resultsLoadedForDone = true;
+        loadAllResults(false);
+      }
+      if (s.status !== "done") resultsLoadedForDone = false;
+
+      // Also refresh results periodically while analyzing/clipping (incremental CSV)
+      if (s.status === "analyzing" && done > 0 && done !== (window._lastAnalyzedShown || 0)) {
+        window._lastAnalyzedShown = done;
+        loadResults("analysis", false);
+      }
+      if (s.status === "clipping") {
+        loadResults("stt", false);
+      }
+
+      lastStatus = s.status;
+    } catch (e) {
+      // network blip — ignore
+    }
+  }
+
+  const SOURCES = {
+    analysis: { el: tableAnalysis, meta: metaAnalysis, file: "analysis_results.csv", emptyMsg: "Run an analysis to see the report here." },
+    stt:      { el: tableStt,      meta: metaStt,      file: "stt_clips_report.csv",  emptyMsg: "STT clipping report will appear here after clip_stt_issues.py runs." },
+  };
+
+  async function loadResults(source, showEmpty) {
+    const cfg = SOURCES[source];
+    if (!cfg) return;
+    try {
+      const res = await fetch(`/api/results?source=${encodeURIComponent(source)}`);
+      const data = await res.json();
+      const cols = data.columns || [];
+      const rows = data.rows || [];
+
+      if (!cols.length || !rows.length) {
+        if (showEmpty) {
+          cfg.el.innerHTML = `<em class="muted" style="padding: 12px; display: block;">${cfg.emptyMsg}</em>`;
+          cfg.meta.textContent = "No results yet.";
+        }
+        return;
+      }
+
+      cfg.meta.innerHTML =
+        `<span class="pill">${rows.length} rows</span>
+         <span class="pill">${cols.length} columns</span>
+         <span class="muted"> &middot; showing raw ${cfg.file}</span>`;
+
+      const thead = "<thead><tr>" +
+        cols.map(c => `<th title="${escapeAttr(c)}">${escapeHtml(c)}</th>`).join("") +
+        "</tr></thead>";
+
+      const bodyRows = rows.map(r => {
+        const tds = cols.map(c => {
+          const v = r[c] == null ? "" : String(r[c]);
+          const cls = v.length > 60 ? "wrap" : "";
+          return `<td class="${cls}" title="${escapeAttr(v)}">${escapeHtml(v)}</td>`;
+        }).join("");
+        return `<tr>${tds}</tr>`;
+      }).join("");
+
+      cfg.el.innerHTML = `<table>${thead}<tbody>${bodyRows}</tbody></table>`;
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  function loadAllResults(showEmpty) {
+    loadResults("analysis", showEmpty);
+    loadResults("stt", showEmpty);
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+  function escapeAttr(s) { return escapeHtml(s); }
+
+  // Download handlers
+  function dl(key) { window.location.href = `/api/download/${key}`; }
+  $("dlAnalysisCsv").addEventListener("click", () => dl("analysis_csv"));
+  $("dlAnalysisJson").addEventListener("click", () => dl("analysis_json"));
+  $("dlSttCsv").addEventListener("click", () => dl("stt_csv"));
+
+  // Initial load + polling
+  loadAllResults(true);
+  pollStatus();
+  setInterval(pollStatus, 2000);
+})();
+</script>
+</body>
+</html>

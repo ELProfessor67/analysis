@@ -1,0 +1,7 @@
+httpx
+pydantic
+google-genai
+pymongo
+certifi
+python-dotenv
+flask
