@@ -33,7 +33,7 @@ load_dotenv()
 INPUT_FILE = "selenium_voice_calling.chat_history.json"
 OUTPUT_FILE = "analysis_results.json"
 OUTPUT_CSV = "analysis_results.csv"
-MODEL = "gemini-3.1-pro-preview"
+MODEL = "gemini-2.5-pro"
 PARALLEL_WORKERS = 5
 
 # Bot system prompt — paste the actual bot instructions here so Gemini can

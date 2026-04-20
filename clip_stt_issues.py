@@ -46,7 +46,7 @@ ANALYSIS_FILE = "analysis_results.json"
 CLIPS_DIR = "stt_clips"
 AUDIO_CACHE_DIR = "stt_clips_audio_cache"
 OUTPUT_CSV = "stt_clips_report.csv"
-MODEL = "gemini-3-flash-preview"
+MODEL = "gemini-2.5-pro"
 PARALLEL_WORKERS = 5
 
 # Prompt sent to Gemini to locate the timestamp
