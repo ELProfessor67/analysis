@@ -25,7 +25,8 @@ import concurrent.futures
 import httpx
 from google import genai
 from google.genai import types
-
+from dotenv import load_dotenv
+load_dotenv()
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
@@ -1119,6 +1120,7 @@ def process_single_call(client, call, call_index, total_calls, temp_dir, results
 
 def main():
     # Check API key
+    api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         print("ERROR: Please set the GEMINI_API_KEY environment variable.")
         print("  set GEMINI_API_KEY=your_api_key_here")
