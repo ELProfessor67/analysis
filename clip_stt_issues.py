@@ -86,7 +86,15 @@ _print_lock = threading.Lock()
 
 def safe_print(*args, **kwargs):
     with _print_lock:
-        print(*args, **kwargs)
+        try:
+            print(*args, **kwargs)
+        except UnicodeEncodeError:
+            # Fallback: encode as UTF-8 and write directly to stdout's byte buffer
+            sep = kwargs.get("sep", " ")
+            end = kwargs.get("end", "\n")
+            msg = sep.join(str(a) for a in args) + end
+            sys.stdout.buffer.write(msg.encode("utf-8", errors="replace"))
+            sys.stdout.buffer.flush()
 
 # ---------------------------------------------------------------------------
 # Helpers
