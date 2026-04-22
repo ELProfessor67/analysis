@@ -881,8 +881,9 @@ def analyze_call(client: genai.Client, audio_path: str, prompt: str) -> dict:
                 )
             ],
             config=types.GenerateContentConfig(
-                temperature=0.2,
+                temperature=1,  # gemini-2.5-pro (thinking model) requires temperature=1
                 max_output_tokens=8192,
+                thinking_config=types.ThinkingConfig(thinking_budget=2048),
             ),
         )
     finally:

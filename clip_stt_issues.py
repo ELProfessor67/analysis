@@ -172,10 +172,11 @@ def get_timestamps_from_gemini(
                     )
                 ],
                 config=types.GenerateContentConfig(
-                    temperature=0.1,
+                    temperature=1,  # gemini-2.5-pro (thinking model) requires temperature=1
                     max_output_tokens=1024,
                     response_mime_type="application/json",
                     response_schema=TimestampResult,
+                    thinking_config=types.ThinkingConfig(thinking_budget=512),
                 ),
             )
 
