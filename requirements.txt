@@ -1,6 +1,6 @@
 httpx
 pydantic
-google-genai
+google-genai==1.63.0
 pymongo
 certifi
 python-dotenv

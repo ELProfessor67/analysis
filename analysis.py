@@ -27,6 +27,11 @@ from google import genai
 from google.genai import types
 from dotenv import load_dotenv
 load_dotenv()
+
+
+# print gemini versions
+print(genai.__version__)
+
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
@@ -833,7 +838,7 @@ def build_prompt(transcript_text: str) -> str:
     )
 
 
-def analyze_call(client: genai.Client, audio_path: str, prompt: str) -> dict:
+def analyze_call(client: genai.Client,audio_path:str, prompt: str,recording_url:str) -> dict:
     """Send audio + prompt to Gemini and get the analysis JSON back."""
 
     # Upload audio file
@@ -873,7 +878,8 @@ def analyze_call(client: genai.Client, audio_path: str, prompt: str) -> dict:
                     role="user",
                     parts=[
                         types.Part.from_uri(
-                            file_uri=uploaded_file.uri,
+                            # file_uri=uploaded_file.uri,
+                            file_uri=recording_url,
                             mime_type="audio/wav",
                         ),
                         types.Part.from_text(text=prompt),
@@ -1098,7 +1104,7 @@ def process_single_call(client, call, call_index, total_calls, temp_dir, results
         prompt = build_prompt(transcript_text)
 
         # Analyze with Gemini
-        analysis = analyze_call(client, audio_path, prompt)
+        analysis = analyze_call(client,audio_path, prompt,call["recording_url"])
 
         # Add metadata about which call this is
         result = {
