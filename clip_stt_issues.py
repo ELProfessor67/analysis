@@ -138,15 +138,24 @@ def get_timestamps_from_gemini(
     phrase: str,
     transcript: str,
     turn_number: str,
-    audio_url: str,
+    audio_path: str,
 ) -> dict:
-    """Use Gemini to find the timestamp of a phrase in the audio."""
+    """
+    Use Gemini to find the timestamp of a phrase in the audio.
+    Uploads the local audio file to the Gemini File API first (required —
+    from_uri only accepts gs:// or Gemini File API URIs, not arbitrary HTTPS URLs).
+    """
     prompt = TIMESTAMP_PROMPT.format(phrase=phrase, transcript=transcript, turn_number=turn_number)
 
-
+    # Upload local file to Gemini File API
+    safe_print(f"    [GEMINI] Uploading audio to Gemini File API: {os.path.basename(audio_path)}")
+    uploaded_file = client.files.upload(file=audio_path, config={"mime_type": "audio/wav"})
+    gemini_uri = uploaded_file.uri
+    safe_print(f"    [GEMINI] Upload done. URI: {gemini_uri}")
 
     raw = ""
-    for attempt in range(1, MAX_RETRIES + 1):
+    try:
+      for attempt in range(1, MAX_RETRIES + 1):
         try:
             response = client.models.generate_content(
                 model=MODEL,
@@ -155,7 +164,7 @@ def get_timestamps_from_gemini(
                         role="user",
                         parts=[
                             types.Part.from_uri(
-                                file_uri=audio_url,
+                                file_uri=gemini_uri,
                                 mime_type="audio/wav",
                             ),
                             types.Part.from_text(text=prompt),
@@ -190,21 +199,28 @@ def get_timestamps_from_gemini(
             return result.model_dump()
 
         except Exception as e:
-            backoff = 2 ** attempt  # 2s, 4s, 8s
-            if attempt < MAX_RETRIES:
-                safe_print(
-                    f"    [GEMINI] Attempt {attempt}/{MAX_RETRIES} failed: "
-                    f"{type(e).__name__}: {e}. Retrying in {backoff}s..."
-                )
-                time.sleep(backoff)
-            else:
-                safe_print(
-                    f"    [GEMINI] Failed after {MAX_RETRIES} attempts. "
-                    f"Last error: {type(e).__name__}: {e}"
-                )
-                if raw:
-                    safe_print(f"    [GEMINI] Last raw response: {raw[:300]}")
-                raise
+                backoff = 2 ** attempt  # 2s, 4s, 8s
+                if attempt < MAX_RETRIES:
+                    safe_print(
+                        f"    [GEMINI] Attempt {attempt}/{MAX_RETRIES} failed: "
+                        f"{type(e).__name__}: {e}. Retrying in {backoff}s..."
+                    )
+                    time.sleep(backoff)
+                else:
+                    safe_print(
+                        f"    [GEMINI] Failed after {MAX_RETRIES} attempts. "
+                        f"Last error: {type(e).__name__}: {e}"
+                    )
+                    if raw:
+                        safe_print(f"    [GEMINI] Last raw response: {raw[:300]}")
+                    raise
+    finally:
+        # Always clean up the uploaded file from Gemini to avoid quota buildup
+        try:
+            client.files.delete(name=uploaded_file.name)
+            safe_print(f"    [GEMINI] Deleted uploaded file: {uploaded_file.name}")
+        except Exception:
+            pass
 
 
 def clip_audio_ffmpeg(
@@ -398,7 +414,7 @@ def process_call(
                 phrase,
                 transcript,
                 turn_number,
-                recording_url,
+                audio_path,  # local file path — uploaded to Gemini File API inside
             )
             safe_print(f"    [Call #{call_index}] [GEMINI] Result: {json.dumps(ts, ensure_ascii=False)}")
         except Exception as e:

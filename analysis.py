@@ -841,37 +841,56 @@ def analyze_call(client: genai.Client, audio_path: str, prompt: str) -> dict:
     uploaded_file = client.files.upload(file=audio_path)
     print(f"    Upload complete: {uploaded_file.name}")
 
-    # Wait for file to be processed
-    while uploaded_file.state.name == "PROCESSING":
-        print("    Waiting for audio processing...")
+    # Wait until the file reaches ACTIVE state (not just exits PROCESSING).
+    # On some environments the file goes PROCESSING -> ACTIVE; we must wait
+    # for ACTIVE explicitly, otherwise generate_content gets 400 INVALID_ARGUMENT.
+    max_wait = 120  # seconds
+    waited = 0
+    while uploaded_file.state.name != "ACTIVE":
+        if uploaded_file.state.name == "FAILED":
+            raise RuntimeError(f"Audio file processing failed: {uploaded_file.name}")
+        if waited >= max_wait:
+            raise RuntimeError(
+                f"Timed out waiting for file {uploaded_file.name} to become ACTIVE "
+                f"(current state: {uploaded_file.state.name})"
+            )
+        print(f"    Waiting for file to become ACTIVE (current: {uploaded_file.state.name})...")
         time.sleep(5)
+        waited += 5
         uploaded_file = client.files.get(name=uploaded_file.name)
 
-    if uploaded_file.state.name == "FAILED":
-        raise RuntimeError(f"Audio file processing failed: {uploaded_file.name}")
+    print(f"    File is ACTIVE. Sending to Gemini for analysis...")
 
-    # Call Gemini
-    print("    Sending to Gemini for analysis...")
-    response = client.models.generate_content(
-        model=MODEL,
-        contents=[
-            types.Content(
-                role="user",
-                parts=[
-                    types.Part.from_uri(
-                        file_uri=uploaded_file.uri,
-                        mime_type="audio/wav",
-                    ),
-                    types.Part.from_text(text=prompt),
-                ],
-            )
-        ],
-        config=types.GenerateContentConfig(
-            temperature=0.2,
-            max_output_tokens=8192,
-            response_mime_type="application/json",
-        ),
-    )
+    try:
+        # Call Gemini — do NOT use response_mime_type="application/json" without
+        # a response_schema on gemini-2.5-pro; newer SDK versions reject it with
+        # 400 INVALID_ARGUMENT. We instruct the model to return JSON in the prompt
+        # instead and parse it ourselves.
+        response = client.models.generate_content(
+            model=MODEL,
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[
+                        types.Part.from_uri(
+                            file_uri=uploaded_file.uri,
+                            mime_type="audio/wav",
+                        ),
+                        types.Part.from_text(text=prompt),
+                    ],
+                )
+            ],
+            config=types.GenerateContentConfig(
+                temperature=0.2,
+                max_output_tokens=8192,
+            ),
+        )
+    finally:
+        # Always clean up the uploaded file to avoid Gemini File API quota buildup
+        try:
+            client.files.delete(name=uploaded_file.name)
+        except Exception:
+            pass
 
     # Parse JSON from response
     raw_text = response.text.strip()
@@ -880,7 +899,7 @@ def analyze_call(client: genai.Client, audio_path: str, prompt: str) -> dict:
     try:
         return json.loads(raw_text)
     except json.JSONDecodeError:
-        # Sometimes the model wraps it in ```json ... ``` — strip that
+        # Strip markdown code fences if the model wrapped the JSON
         if raw_text.startswith("```"):
             raw_text = raw_text.split("\n", 1)[1]
         if raw_text.endswith("```"):
